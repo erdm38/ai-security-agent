@@ -2,6 +2,7 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
+import rag_engine
 
 # .env dosyasından API anahtarını yükle
 load_dotenv()
@@ -107,6 +108,21 @@ tools = [
                 "required": ["command_name"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_codebase",
+            "description": "Searches the locally indexed codebase using RAG (Vector Database) for semantic matches to a query. Use this when you need to find relevant code snippets (e.g., 'auth mechanisms', 'SQL queries', 'JWT validation') across a large project.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query, e.g., 'database connection' or 'jwt token validation'"},
+                    "k": {"type": "integer", "description": "Number of code chunks to return. Default is 5."}
+                },
+                "required": ["query"]
+            }
+        }
     }
 ]
 
@@ -152,6 +168,19 @@ def create_security_agent():
             break
 
         if not user_input.strip():
+            continue
+
+        if user_input.startswith("/index "):
+            path = user_input.split(" ", 1)[1]
+            if os.path.isdir(path):
+                print(f"[{path} klasörü vektör veritabanına ekleniyor. Bu işlem proje boyutuna göre sürebilir...]")
+                try:
+                    result_msg = rag_engine.build_index(path)
+                    print(result_msg)
+                except Exception as e:
+                    print(f"Indexleme hatası: {e}")
+            else:
+                print(f"HATA: '{path}' adında geçerli bir klasör bulunamadı!")
             continue
 
         # Klasik /scan komutu desteği (geriye dönük uyumluluk için)
@@ -230,6 +259,11 @@ def create_security_agent():
                             function_response = load_skill(function_args.get("skill_name"))
                         elif function_name == "get_command_template":
                             function_response = get_command_template(function_args.get("command_name"))
+                        elif function_name == "search_codebase":
+                            query = function_args.get("query")
+                            k = function_args.get("k", 5)
+                            print(f"\n[🛠️ Sistem: Vektör DB'de kod aranıyor: '{query}']")
+                            function_response = rag_engine.search_codebase(query, k)
                         
                         # Fonksiyonun döndürdüğü cevabı "tool" rolüyle geçmişe ekle
                         messages.append({
