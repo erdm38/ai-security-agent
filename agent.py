@@ -45,6 +45,47 @@ def create_security_agent():
         if not user_input.strip():
             continue
 
+        # Dosya tarama komutu eklendi: /scan <dosya_adi_veya_klasor>
+        if user_input.startswith("/scan "):
+            path = user_input.split(" ", 1)[1]
+            
+            files_to_scan = []
+            if os.path.isfile(path):
+                files_to_scan.append(path)
+            elif os.path.isdir(path):
+                for root, _, files in os.walk(path):
+                    for file in files:
+                        # Gereksiz klasörleri atla (.git, venv, pycache vb.)
+                        if ".git" in root or "venv" in root or "__pycache__" in root:
+                            continue
+                        files_to_scan.append(os.path.join(root, file))
+            else:
+                print(f"HATA: '{path}' adında bir dosya veya klasör bulunamadı!")
+                continue
+
+            if not files_to_scan:
+                print("Taranacak dosya bulunamadı!")
+                continue
+
+            all_code_content = ""
+            success_count = 0
+            for file_path in files_to_scan:
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        file_content = f.read()
+                        all_code_content += f"\n\n--- Dosya: {file_path} ---\n```\n{file_content}\n```"
+                        success_count += 1
+                except Exception as e:
+                    print(f"Uyarı: '{file_path}' okunamadı: {e}")
+            
+            if success_count == 0:
+                print("Hiçbir dosya okunamadı!")
+                continue
+
+            # Kodu ajana sormak için promptu değiştir
+            user_input = f"Lütfen aşağıdaki kod dosyalarını güvenlik açıklarına karşı incele ve bulgularını raporla:\n{all_code_content}"
+            print(f"[{success_count} adet dosya okundu ve analiz için ajana gönderiliyor...]")
+            
         messages.append({"role": "user", "content": user_input})
 
         try:
